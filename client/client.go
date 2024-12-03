@@ -17,7 +17,7 @@ func newClient(serverURL string) (*Client, error) {
 	// Establish WebSocket connection
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL, http.Header{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %v", err)
+		return nil, fmt.Errorf("CLIENT: failed to connect: %v", err)
 	}
 
 	return &Client{
@@ -29,7 +29,7 @@ func newClient(serverURL string) (*Client, error) {
 func (c *Client) sendMessage(message string) {
 	err := c.conn.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
-		log.Println("Send error:", err)
+		log.Println("CLIENT: Send error:", err)
 		return
 	}
 	c.NonSuccessfulEchoes++
@@ -38,7 +38,7 @@ func (c *Client) sendMessage(message string) {
 func (c *Client) receiveMessage(expMessage string) {
 	_, actMessage, err := c.conn.ReadMessage()
 	if err != nil {
-		log.Println("Read error:", err)
+		log.Println("CLIENT: Read error:", err)
 		return
 	}
 	if expMessage != string(actMessage) {
@@ -56,18 +56,18 @@ func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- int)
 
 	client, err := newClient("ws://localhost:8080/ws")
 	if err != nil {
-		log.Printf("Client creation failed: %v", err)
+		log.Printf("Client creation failed: %v\n", err)
 		return
 	}
 	defer client.close()
 
 	for i := 0; i < msgNum; i++ {
-		msg := fmt.Sprintf("I am client: #%d, my %d message", clientNum, i)
+		msg := fmt.Sprintf("MESSAGE: Client: #%d, my %d message", clientNum, i)
 		client.sendMessage(msg)
 		client.receiveMessage(msg)
 	}
 
-	fmt.Printf("I am client: #%d, ive sent all msgs\n", clientNum)
+	log.Printf("CLIENT: Client: #%d, ive sent all msgs\n", clientNum)
 
 	if client.NonSuccessfulEchoes == 0 {
 		result <- 1

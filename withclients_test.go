@@ -5,11 +5,15 @@ import (
 	"sync"
 	"testing"
 	"websocketReverseProxy/client"
+	"websocketReverseProxy/server"
 )
 
 const ClientAmount = 1
+const serverAddr = ":8080"
 
 func TestServer(t *testing.T) {
+	go server.StartServer(serverAddr)
+
 	wg := sync.WaitGroup{}
 	var resChan = make(chan int, ClientAmount)
 	for i := 0; i < ClientAmount; i++ {
@@ -23,7 +27,10 @@ func TestServer(t *testing.T) {
 
 	// Read from the channel until it is closed
 	for value := range resChan {
-		log.Printf("Client successed %d\n", value)
+		log.Printf("TEST: Client successed %d\n", value)
+		if value != 0 {
+			t.Fail()
+		}
 	}
 
 }
