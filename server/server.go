@@ -2,7 +2,6 @@ package server
 
 import (
 	"github.com/gorilla/websocket"
-	"io"
 	"log"
 	"net/http"
 	"time" // Added for timeout handling
@@ -44,17 +43,13 @@ func HandleConnections(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		messageType, message, err := conn.ReadMessage()
-		if err == io.EOF {
-			log.Println("SERVER: Got EOF ending")
-			return
-		}
-		if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-			log.Println("SERVER: Unexpected close error:", err)
-			return
-		}
 		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Println("SERVER: Unexpected close error:", err)
+				break
+			}
 			log.Println("SERVER: Error during reading message:", err)
-			return // Modified to close the loop on error
+			break
 		}
 
 		if messageType == websocket.BinaryMessage {
