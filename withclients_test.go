@@ -22,11 +22,10 @@ func TestServer(t *testing.T) {
 		go client.RunClient(&wg, i, msgAmount, resChan)
 	}
 	go func() {
-		wg.Wait()      // Wait for all goroutines to finish
-		close(resChan) // Close the channel
+		wg.Wait()
+		close(resChan)
 	}()
 
-	// Read from the channel until it is closed
 	for value := range resChan {
 		log.Printf("TEST: Client successed %d\n", value)
 		if value != 0 {
