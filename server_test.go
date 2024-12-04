@@ -1,7 +1,6 @@
 package client_test
 
 import (
-	"log"
 	"sync"
 	"testing"
 	"websocketReverseProxy/client"
@@ -16,7 +15,7 @@ func TestServer(t *testing.T) {
 	go server.StartServer(serverAddr)
 
 	wg := sync.WaitGroup{}
-	var resChan = make(chan int, clientAmount)
+	var resChan = make(chan bool, clientAmount)
 	for i := 0; i < clientAmount; i++ {
 		wg.Add(1)
 		go client.RunClient(&wg, i, msgAmount, resChan)
@@ -27,10 +26,8 @@ func TestServer(t *testing.T) {
 	}()
 
 	for value := range resChan {
-		log.Printf("TEST: Client successed %d\n", value)
-		if value != 0 {
+		if !value {
 			t.Fail()
 		}
 	}
-
 }
