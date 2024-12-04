@@ -1,32 +1,52 @@
 package server
 
 import (
+	"errors"
 	"github.com/gorilla/websocket"
+	"io"
 	"log"
 	"net/http"
 	"time" // Added for timeout handling
 )
-
-var upgrader = websocket.Upgrader{
-	// Allow connections from any origin (not recommended for production)
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
 
 func authenticateUpgrade(r *http.Request) bool {
 	// left as placeholder for now
 	return true
 }
 
-func HandleConnections(w http.ResponseWriter, r *http.Request) {
-	authenticateUpgrade(r)
+type ProxyServer struct {
+	upgrader websocket.Upgrader
+}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+func NewProxyServer() *ProxyServer {
+	var s *ProxyServer
+	s.upgrader = websocket.Upgrader{
+		HandshakeTimeout: time.Second * 30,
+		ReadBufferSize:   1024,
+		WriteBufferSize:  1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+	return s
+}
+
+func (ps *ProxyServer) tryUpgradeConn(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
+	if !authenticateUpgrade(r) {
+		log.Println("SERVER: Failed to authenticate upgrade")
+		return nil, errors.New("authentication error")
+	}
+
+	conn, err := ps.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("SERVER: Error in upgrading:", err)
-		return
+		return nil, err
 	}
+	return conn, nil
+}
+
+func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request) {
+	conn, err := ps.tryUpgradeConn(w, r)
 
 	defer func() {
 		log.Println("SERVER: Closing connection")
