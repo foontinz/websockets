@@ -3,7 +3,6 @@ package server
 import (
 	"errors"
 	"github.com/gorilla/websocket"
-	"io"
 	"log"
 	"net/http"
 	"time" // Added for timeout handling
@@ -70,15 +69,9 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 	for {
 		messageType, message, err := conn.ReadMessage()
 		if err != nil {
-			if !websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Println("SERVER: Unexpected close error:", err)
-				break
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Println("SERVER: Unexpected error:", err)
 			}
-			if errors.Is(err, io.ErrUnexpectedEOF) {
-				log.Println("SERVER: Unexpected eof error:", err)
-				break
-			}
-			log.Println("SERVER: Error during reading message:", err)
 			break
 		}
 
