@@ -5,12 +5,14 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"reflect"
 	"sync"
 )
 
 type Client struct {
-	conn                *websocket.Conn
-	NonSuccessfulEchoes uint8 // amount of successful echoes
+	conn             *websocket.Conn
+	sentMessages     []string
+	receivedMessages []string
 }
 
 func newClient(serverURL string) (*Client, error) {
@@ -21,8 +23,9 @@ func newClient(serverURL string) (*Client, error) {
 	}
 
 	return &Client{
-		conn:                conn,
-		NonSuccessfulEchoes: 0,
+		conn:             conn,
+		sentMessages:     make([]string, 0, 32),
+		receivedMessages: make([]string, 0, 32),
 	}, nil
 }
 
@@ -32,25 +35,23 @@ func (c *Client) sendMessage(message string) {
 		log.Println("CLIENT: Send error:", err)
 		return
 	}
-	c.NonSuccessfulEchoes++
+	c.sentMessages = append(c.sentMessages, message)
 }
 
-func (c *Client) receiveMessage(expMessage string) {
+func (c *Client) receiveMessage() {
 	_, actMessage, err := c.conn.ReadMessage()
 	if err != nil {
 		log.Println("CLIENT: Read error:", err)
 		return
 	}
-	if expMessage != string(actMessage) {
-		c.NonSuccessfulEchoes--
-	}
+	c.receivedMessages = append(c.receivedMessages, string(actMessage))
 }
 
 func (c *Client) close() {
 	c.conn.Close()
 }
 
-func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- int) {
+func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- bool) {
 	// Goroutine to run client
 	defer wg.Done()
 
@@ -62,16 +63,10 @@ func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- int)
 	defer client.close()
 
 	for i := 0; i < msgNum; i++ {
-		msg := fmt.Sprintf("MESSAGE: Client: #%d, my %d message", clientNum, i)
+		msg := fmt.Sprintf("i am client: #%d, my %d message", clientNum, i)
 		client.sendMessage(msg)
-		client.receiveMessage(msg)
+		client.receiveMessage()
 	}
 
-	log.Printf("CLIENT: Client: #%d, ive sent all msgs\n", clientNum)
-
-	if client.NonSuccessfulEchoes == 0 {
-		result <- 1
-	} else {
-		result <- 0
-	}
+	result <- reflect.DeepEqual(client.receivedMessages, client.sentMessages)
 }
