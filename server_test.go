@@ -7,8 +7,8 @@ import (
 	"websocketReverseProxy/server"
 )
 
-const clientAmount = 10
-const msgAmount = 10
+const clientAmount = 100
+const msgAmount = 100
 const serverAddr = ":8080"
 
 func TestServer(t *testing.T) {
@@ -24,7 +24,6 @@ func TestServer(t *testing.T) {
 		wg.Wait()
 		close(resChan)
 	}()
-
 	for value := range resChan {
 		if !value {
 			t.Fail()

@@ -67,6 +67,5 @@ func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- bool
 		client.sendMessage(msg)
 		client.receiveMessage()
 	}
-
 	result <- reflect.DeepEqual(client.receivedMessages, client.sentMessages)
 }
