@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
@@ -13,12 +14,20 @@ func authenticateUpgrade(r *http.Request) bool {
 	return true
 }
 
+type InConnection struct {
+	conn *websocket.Conn
+}
+
 type ProxyServer struct {
 	upgrader websocket.Upgrader
+	clients  map[uuid.UUID]InConnection
 }
 
 func NewProxyServer() *ProxyServer {
-	s := &ProxyServer{}
+	s := &ProxyServer{
+		clients: make(map[uuid.UUID]InConnection),
+	}
+
 	s.upgrader = websocket.Upgrader{
 		HandshakeTimeout: time.Second * 30,
 		ReadBufferSize:   1024,
@@ -53,6 +62,11 @@ func (ps *ProxyServer) configureConnection(conn *websocket.Conn) *websocket.Conn
 	})
 	return conn
 }
+func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
+	userUUID := uuid.New()
+	ps.clients[userUUID] = connection
+	return userUUID
+}
 
 func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := ps.tryUpgradeConn(w, r)
@@ -60,6 +74,8 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 		log.Println("SERVER: Failed to upgrade connection to websockets.")
 		return
 	}
+	ps.addClient(InConnection{conn: conn})
+
 	defer func() {
 		log.Println("SERVER: Closing connection")
 		conn.Close()
