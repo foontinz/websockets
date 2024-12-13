@@ -2,11 +2,13 @@ package server
 
 import (
 	"errors"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"sync"
 	"time" // Added for timeout handling
+
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 func authenticateUpgrade(r *http.Request) bool {
@@ -19,6 +21,7 @@ type InConnection struct {
 }
 
 type ProxyServer struct {
+	mu       sync.RWMutex
 	upgrader websocket.Upgrader
 	clients  map[uuid.UUID]InConnection
 }
@@ -52,6 +55,7 @@ func (ps *ProxyServer) tryUpgradeConn(w http.ResponseWriter, r *http.Request) (*
 	}
 	return conn, nil
 }
+
 func (ps *ProxyServer) configureConnection(conn *websocket.Conn) *websocket.Conn {
 	// Set timeouts for read/write to avoid lingering connections (added this block)
 	conn.SetReadLimit(512)
@@ -63,6 +67,8 @@ func (ps *ProxyServer) configureConnection(conn *websocket.Conn) *websocket.Conn
 	return conn
 }
 func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 	userUUID := uuid.New()
 	ps.clients[userUUID] = connection
 	return userUUID
@@ -74,13 +80,13 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 		log.Println("SERVER: Failed to upgrade connection to websockets.")
 		return
 	}
-	ps.addClient(InConnection{conn: conn})
 
 	defer func() {
 		log.Println("SERVER: Closing connection")
 		conn.Close()
 	}()
 	conn = ps.configureConnection(conn)
+	ps.addClient(InConnection{conn: conn})
 
 	for {
 		messageType, message, err := conn.ReadMessage()
