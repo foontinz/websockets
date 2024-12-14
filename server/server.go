@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 	"websocketReverseProxy/server/auth"
+	"websocketReverseProxy/server/connection"
 	"websocketReverseProxy/sink"
 
 	"github.com/google/uuid"
@@ -55,17 +56,6 @@ func (ps *ProxyServer) tryUpgradeConn(w http.ResponseWriter, r *http.Request) (*
 	return conn, nil
 }
 
-func (ps *ProxyServer) configureConnection(conn *websocket.Conn) *websocket.Conn {
-	// Set timeouts for read/write to avoid lingering connections (added this block)
-	conn.SetReadLimit(512)
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-		return nil
-	})
-	return conn
-}
-
 func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -86,7 +76,7 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 		conn.Close()
 	}()
 
-	conn = ps.configureConnection(conn)
+	conn = connection.ConfigureConnection(conn)
 	ps.addClient(InConnection{conn: conn})
 
 	for {
