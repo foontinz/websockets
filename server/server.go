@@ -5,16 +5,13 @@ import (
 	"log"
 	"net/http"
 	"sync"
-	"time" // Added for timeout handling
+	"time"
+	"websocketReverseProxy/server/auth"
+	"websocketReverseProxy/sink"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
-
-func authenticateUpgrade(r *http.Request) bool {
-	// left as placeholder for now
-	return true
-}
 
 type InConnection struct {
 	conn *websocket.Conn
@@ -23,11 +20,13 @@ type InConnection struct {
 type ProxyServer struct {
 	mu       sync.RWMutex
 	upgrader websocket.Upgrader
+	sink     sink.Sink
 	clients  map[uuid.UUID]InConnection
 }
 
-func NewProxyServer() *ProxyServer {
+func NewProxyServer(sink sink.Sink) *ProxyServer {
 	s := &ProxyServer{
+		sink:    sink,
 		clients: make(map[uuid.UUID]InConnection),
 	}
 
@@ -43,7 +42,7 @@ func NewProxyServer() *ProxyServer {
 }
 
 func (ps *ProxyServer) tryUpgradeConn(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
-	if !authenticateUpgrade(r) {
+	if !auth.AuthenticateUpgrade(r) {
 		log.Println("SERVER: Failed to authenticate upgrade")
 		return nil, errors.New("authentication error")
 	}
@@ -66,6 +65,7 @@ func (ps *ProxyServer) configureConnection(conn *websocket.Conn) *websocket.Conn
 	})
 	return conn
 }
+
 func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -85,6 +85,7 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 		log.Println("SERVER: Closing connection")
 		conn.Close()
 	}()
+
 	conn = ps.configureConnection(conn)
 	ps.addClient(InConnection{conn: conn})
 
@@ -111,8 +112,8 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func StartServer(addr string) {
-	server := NewProxyServer()
+func StartServer(addr string, sink sink.Sink) {
+	server := NewProxyServer(sink)
 	http.HandleFunc("/ws", server.HandleConnections)
 	log.Println("SERVER: WebSocket server starting on :8080")
 	if err := http.ListenAndServe(addr, nil); err != nil {
