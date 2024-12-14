@@ -5,6 +5,7 @@ import (
 	"testing"
 	"websocketReverseProxy/client"
 	"websocketReverseProxy/server"
+	"websocketReverseProxy/sink"
 )
 
 const clientAmount = 100
@@ -12,7 +13,7 @@ const msgAmount = 100
 const serverAddr = ":8080"
 
 func TestServer(t *testing.T) {
-	go server.StartServer(serverAddr)
+	go server.StartServer(serverAddr, sink.Sink(nil))
 
 	wg := sync.WaitGroup{}
 	var resChan = make(chan bool, clientAmount)
