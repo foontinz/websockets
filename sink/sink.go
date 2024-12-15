@@ -1,9 +1,11 @@
 package sink
 
-import "context"
+import (
+	"context"
+)
 
 type Sink interface {
-	Write(ctx context.Context, data []byte) error
-	Read(ctx context.Context) ([]byte, error)
+	Subscribe(ctx context.Context, channels ...string) <-chan string
+	Read(ctx context.Context, channel string) ([]byte, error)
 	Close(ctx context.Context) error
 }
