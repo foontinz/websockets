@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -21,14 +22,18 @@ func subscribeOnChannel(ctx context.Context, c *redis.Client, channel string) {
 	}
 }
 
+const RedisTimeout = time.Second * 15
+
 func TestRedisClient(t *testing.T) {
+	ctx, ctxCancel := context.WithTimeout(context.Background(), RedisTimeout)
+	defer ctxCancel()
 	c := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: "",
 		DB:       0,
 	})
-	go subscribeOnChannel(context.TODO(), c, testChannel)
+	go subscribeOnChannel(ctx, c, testChannel)
 	for i := 0; i < msgNumber; i++ {
-		c.Publish(context.TODO(), testChannel, fmt.Sprintf("%d", i))
+		c.Publish(ctx, testChannel, fmt.Sprintf("%d", i))
 	}
 }
