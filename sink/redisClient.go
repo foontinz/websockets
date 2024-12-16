@@ -25,8 +25,16 @@ func (rc *RedisClient) Write(ctx context.Context, channel string, data interface
 func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) <-chan string {
 	ch := make(chan string)
 	go func() {
-		for msg := range rc.Client.Subscribe(ctx, channels...).Channel() {
-			ch <- msg.Payload
+		defer close(ch)
+		pubsub := rc.Client.Subscribe(ctx, channels...)
+		defer pubsub.Close()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg := <-pubsub.Channel():
+				ch <- msg.Payload
+			}
 		}
 	}()
 	return ch
