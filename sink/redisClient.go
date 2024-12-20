@@ -22,12 +22,15 @@ func (rc *RedisClient) Write(ctx context.Context, channel string, data interface
 	return rc.Client.Publish(ctx, channel, data).Err()
 }
 
-func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) <-chan string {
+func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) (<-chan string, <-chan struct{}) {
 	ch := make(chan string)
+	ready := make(chan struct{})
+
 	go func() {
 		defer close(ch)
 		pubsub := rc.Client.Subscribe(ctx, channels...)
 		defer pubsub.Close()
+		ready <- struct{}{}
 		for {
 			select {
 			case <-ctx.Done():
@@ -37,7 +40,7 @@ func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) <-chan
 			}
 		}
 	}()
-	return ch
+	return ch, ready
 }
 
 func (rc *RedisClient) Close(ctx context.Context) error {

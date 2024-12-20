@@ -32,13 +32,20 @@ func TestRedisClient(t *testing.T) {
 	}))
 	defer c.Close(ctx)
 
-	go func() {
-		subChannel := c.Subscribe(ctx, testChannel)
-		for msg := range subChannel {
-			receivedMsgs <- msg
-		}
-	}()
-	time.Sleep(time.Second)
+	t.Log("Starting subscription...")
+	subChannel, ready := c.Subscribe(ctx, testChannel)
+	select {
+	case <-ctx.Done():
+		t.Fatal("Context canceled while waiting for subscription")
+	case <-ready:
+		go func() {
+			for msg := range subChannel {
+				receivedMsgs <- msg
+				t.Logf("Received message: %s", msg)
+			}
+		}()
+	}
+
 	for i := 0; i < msgNumber; i++ {
 		go func(i int) {
 			msg := fmt.Sprintf("%d", i)
@@ -52,7 +59,8 @@ func TestRedisClient(t *testing.T) {
 	for successfulCommunications < msgNumber {
 		select {
 		case <-ctx.Done():
-			t.FailNow()
+			t.Fatalf("Timeout waiting for messages. Received only %d/%d",
+				successfulCommunications, msgNumber)
 		case <-receivedMsgs:
 			successfulCommunications++
 		}
