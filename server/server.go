@@ -64,12 +64,19 @@ func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
 	return userUUID
 }
 
+func (ps *ProxyServer) removeClient(uuid uuid.UUID) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	delete(ps.clients, uuid)
+}
+
 func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
 	defer conn.Close()
 	conn = connection.ConfigureConnection(conn)
 	connId := ps.addClient(InConnection{conn: conn})
 	defer func() {
-		log.Printf("Connection is closing %s", connId)
+		log.Printf("Connection is closing %s, removing client from the server", connId)
+		ps.removeClient(connId)
 	}()
 
 	for {
