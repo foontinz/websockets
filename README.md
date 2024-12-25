@@ -1,4 +1,4 @@
-### Golang websocket server with redis `echoing` integration
+# Golang websocket server with redis `echoing` integration
 
 ### How to run
 1. Setup redis server - [link](https://redis.io/docs/latest/operate/oss_and_stack/install/install-stack/docker/)
