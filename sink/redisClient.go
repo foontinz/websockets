@@ -7,19 +7,19 @@ import (
 )
 
 type RedisClient struct {
-	*redis.Client
+	client *redis.Client
 }
 
 func NewRedisClient(client *redis.Client) *RedisClient {
 	rc := &RedisClient{
-		Client: client,
+		client: client,
 	}
 
 	return rc
 }
 
 func (rc *RedisClient) Write(ctx context.Context, channel string, data interface{}) error {
-	return rc.Client.Publish(ctx, channel, data).Err()
+	return rc.client.Publish(ctx, channel, data).Err()
 }
 
 func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) (<-chan string, <-chan struct{}) {
@@ -28,7 +28,7 @@ func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) (<-cha
 
 	go func() {
 		defer close(ch)
-		pubsub := rc.Client.Subscribe(ctx, channels...)
+		pubsub := rc.client.Subscribe(ctx, channels...)
 		defer pubsub.Close()
 		ready <- struct{}{}
 		for {
@@ -44,5 +44,5 @@ func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) (<-cha
 }
 
 func (rc *RedisClient) Close(ctx context.Context) error {
-	return rc.Client.Close()
+	return rc.client.Close()
 }
