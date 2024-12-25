@@ -1,11 +1,13 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"reflect"
 	"sync"
+	"websocketReverseProxy/events"
 
 	"github.com/gorilla/websocket"
 )
@@ -30,13 +32,15 @@ func newClient(serverURL string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) sendMessage(message string) {
-	err := c.conn.WriteMessage(websocket.TextMessage, []byte(message))
+func (c *Client) sendMessage(msgEvent events.MessageEvent) {
+	message, _ := json.Marshal(msgEvent)
+	err := c.conn.WriteMessage(websocket.TextMessage, message)
 	if err != nil {
 		log.Println("CLIENT: Send error:", err)
 		return
 	}
-	c.sentMessages = append(c.sentMessages, message)
+	log.Println("CLIENT: sent msg:", string(message))
+	c.sentMessages = append(c.sentMessages, string(msgEvent.Content))
 }
 
 func (c *Client) receiveMessage() {
@@ -45,6 +49,7 @@ func (c *Client) receiveMessage() {
 		log.Println("CLIENT: Read error:", err)
 		return
 	}
+	log.Println("CLIENT: received msg:", string(actMessage))
 	c.receivedMessages = append(c.receivedMessages, string(actMessage))
 }
 
@@ -64,9 +69,10 @@ func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- bool
 	defer client.close()
 
 	for i := 0; i < msgNum; i++ {
-		msg := fmt.Sprintf("i am client: #%d, my %d message", clientNum, i)
-		client.sendMessage(msg)
+		msgEvent := events.MessageEvent{Channel: fmt.Sprintf("client=%d", clientNum), Content: []byte(fmt.Sprintf("I am message=%d", i))}
+		client.sendMessage(msgEvent)
 		client.receiveMessage()
+
 	}
 	result <- reflect.DeepEqual(client.receivedMessages, client.sentMessages)
 }

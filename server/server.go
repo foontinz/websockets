@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"websocketReverseProxy/events"
+	"websocketReverseProxy/serialization"
 	"websocketReverseProxy/server/auth"
 	"websocketReverseProxy/server/connection"
 	"websocketReverseProxy/sink"
@@ -70,6 +72,17 @@ func (ps *ProxyServer) removeClient(uuid uuid.UUID) {
 	delete(ps.clients, uuid)
 }
 
+func (ps *ProxyServer) HandleWebsocketMessage(conn *websocket.Conn, message events.MessageEvent) error {
+
+	if err := conn.WriteMessage(websocket.TextMessage, message.Content); err != nil {
+		log.Println("SERVER: Error during writing to client message:", err)
+		return err
+	}
+
+	log.Printf("SERVER: Sent to client: %s\n", message.Content)
+	return nil
+}
+
 func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
 	defer conn.Close()
 	conn = connection.ConfigureConnection(conn)
@@ -92,14 +105,15 @@ func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
 			continue
 		}
 
-		err = conn.WriteMessage(websocket.TextMessage, message)
+		msgEvent, err := serialization.DeserializeMessage(message)
 		if err != nil {
-			log.Println("SERVER: Error during echoing message:", err)
-			return
+			log.Println("SERVER: Cannot process message, not deserializable, msg: ", message)
+			continue
 		}
-		log.Printf("SERVER: Sent to client: %s\n", message)
+		ps.HandleWebsocketMessage(conn, msgEvent)
 	}
 }
+
 func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := ps.tryUpgradeConn(w, r)
 	if err != nil {
