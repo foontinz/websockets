@@ -64,20 +64,13 @@ func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
 	return userUUID
 }
 
-func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request) {
-	conn, err := ps.tryUpgradeConn(w, r)
-	if err != nil {
-		log.Println("SERVER: Failed to upgrade connection to websockets.")
-		return
-	}
-
-	defer func() {
-		log.Println("SERVER: Closing connection")
-		conn.Close()
-	}()
-
+func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
+	defer conn.Close()
 	conn = connection.ConfigureConnection(conn)
-	ps.addClient(InConnection{conn: conn})
+	connId := ps.addClient(InConnection{conn: conn})
+	defer func() {
+		log.Printf("Connection is closing %s", connId)
+	}()
 
 	for {
 		messageType, message, err := conn.ReadMessage()
@@ -87,7 +80,6 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 			}
 			break
 		}
-
 		if messageType == websocket.BinaryMessage {
 			log.Println("SERVER: Cannot process binary message")
 			continue
@@ -100,6 +92,14 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 		}
 		log.Printf("SERVER: Sent to client: %s\n", message)
 	}
+}
+func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request) {
+	conn, err := ps.tryUpgradeConn(w, r)
+	if err != nil {
+		log.Println("SERVER: Failed to upgrade connection to websockets.")
+		return
+	}
+	go ps.HandleWebsocketConnection(conn)
 }
 
 func StartServer(addr string, sink sink.Sink) {
