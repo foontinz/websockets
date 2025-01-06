@@ -91,7 +91,7 @@ func (ps *ProxyServer) AcknowledgeClient(ctx context.Context, clientUUID uuid.UU
 		return nil
 	default:
 		conn := ps.getClient(clientUUID)
-		if err := conn.WriteMessage(websocket.TextMessage, []byte("123")); err != nil {
+		if err := conn.WriteMessage(websocket.TextMessage, message.Content); err != nil {
 			return err
 		}
 		log.Printf("[SERVER]: Acknowledged client: %s\n", message.Content)
