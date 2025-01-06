@@ -2,7 +2,7 @@ package serialization
 
 import (
 	"encoding/json"
-	"websocketReverseProxy/events"
+	"websocketReverseProxy/pkg/events"
 )
 
 func DeserializeMessage(data []byte) (events.MessageEvent, error) {

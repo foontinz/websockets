@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"websocketReverseProxy/client"
+	"websocketReverseProxy/pkg/client"
 )
 
 const clientAmount = 100

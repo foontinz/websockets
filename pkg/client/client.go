@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"reflect"
 	"sync"
-	"websocketReverseProxy/events"
+	"websocketReverseProxy/pkg/events"
 
 	"github.com/gorilla/websocket"
 )

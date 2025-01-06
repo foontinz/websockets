@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"websocketReverseProxy/server"
-	"websocketReverseProxy/sink"
+	"websocketReverseProxy/pkg/server"
+	"websocketReverseProxy/pkg/sink"
 
 	"github.com/redis/go-redis/v9"
 )
