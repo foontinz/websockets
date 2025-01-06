@@ -45,13 +45,13 @@ func NewProxyServer(sink sink.Sink) *ProxyServer {
 
 func (ps *ProxyServer) tryUpgradeConn(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
 	if !auth.AuthenticateUpgrade(r) {
-		log.Println("SERVER: Failed to authenticate upgrade")
-		return nil, errors.New("authentication error")
+		log.Println("[SERVER]: Failed to authenticate upgrade")
+		return nil, errors.New("[SERVER]: authentication error")
 	}
 
 	conn, err := ps.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("SERVER: Errored in upgrading:", err)
+		log.Println("[SERVER]: Errored in upgrading:", err)
 		return nil, err
 	}
 	return conn, nil
@@ -77,8 +77,11 @@ func (ps *ProxyServer) removeClient(uuid uuid.UUID) {
 	delete(ps.clients, uuid)
 }
 
-func (ps *ProxyServer) RedirectWebsocketMessage(message events.MessageEvent) error {
-	log.Printf("Redirected to dest message: %s\n", message)
+func (ps *ProxyServer) RedirectWebsocketMessage(clientUUID uuid.UUID, message events.MessageEvent) error {
+	if err := ps.sink.Write(context.TODO(), clientUUID.String(), message.Content); err != nil {
+		return err
+	}
+	log.Printf("[SERVER]: Redirected to dest message: %s\n", message)
 	return nil
 }
 
@@ -88,53 +91,66 @@ func (ps *ProxyServer) AcknowledgeClient(ctx context.Context, clientUUID uuid.UU
 		return nil
 	default:
 		conn := ps.getClient(clientUUID)
-		if err := conn.WriteMessage(websocket.TextMessage, message.Content); err != nil {
-			log.Println("SERVER: Error acknowledging client. Lost message:", err)
+		if err := conn.WriteMessage(websocket.TextMessage, []byte("123")); err != nil {
 			return err
 		}
-
-		log.Printf("SERVER: Acknowledged client: %s\n", message.Content)
+		log.Printf("[SERVER]: Acknowledged client: %s\n", message.Content)
 		return nil
 	}
 }
 
 func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
-	conn = connection.ConfigureConnection(conn)
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	conn = connection.ConfigureConnection(conn, ctxCancel)
 	clientUUID := ps.addClient(conn)
+
 	defer func() {
-		log.Printf("Connection is closing %s, removing client from the server", clientUUID)
+		log.Printf("[SERVER]: Connection is closing %s, removing client from the server", clientUUID)
+		ctxCancel()
 		ps.removeClient(clientUUID)
 		conn.Close()
 	}()
-	for {
-		ctx, ctxCancel := context.WithCancel(context.Background())
-		messageType, message, err := conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Println("SERVER: Unexpected error:", err)
-			}
-			ctxCancel()
-			break
-		}
-		if messageType == websocket.BinaryMessage {
-			log.Println("SERVER: Cannot process binary message")
-			continue
-		}
 
-		msgEvent, err := serialization.DeserializeMessage(message)
-		if err != nil {
-			log.Println("SERVER: Cannot process message, not deserializable, msg: ", message)
-			continue
+Loop:
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("[SERVER]: Connection is closed or cancelled")
+			return
+		default:
+			messageType, message, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Println("[SERVER]: Unexpected error:", err)
+				}
+				break Loop
+			}
+			if messageType == websocket.BinaryMessage {
+				log.Println("[SERVER]: Cannot process binary message")
+				continue Loop
+			}
+
+			msgEvent, err := serialization.DeserializeMessage(message)
+			if err != nil {
+				log.Println("[SERVER]: Cannot process message, not deserializable, msg: ", message)
+				continue Loop
+			}
+
+			if err := ps.RedirectWebsocketMessage(clientUUID, msgEvent); err != nil {
+				log.Printf("[SERVER]: Error redirecting websocket message: %s\n", message)
+				continue Loop
+			}
+			if err := ps.AcknowledgeClient(ctx, clientUUID, msgEvent); err != nil {
+				log.Println("[SERVER]: Error acknowledging client. Lost message:", err)
+			}
 		}
-		ps.RedirectWebsocketMessage(msgEvent)
-		ps.AcknowledgeClient(ctx, clientUUID, msgEvent)
 	}
 }
 
 func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request) {
 	conn, err := ps.tryUpgradeConn(w, r)
 	if err != nil {
-		log.Println("SERVER: Failed to upgrade connection to websockets.")
+		log.Println("[SERVER]: Failed to upgrade connection to websockets.")
 		return
 	}
 	go ps.HandleWebsocketConnection(conn)
@@ -143,8 +159,8 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 func StartServer(addr string, sink sink.Sink) {
 	server := NewProxyServer(sink)
 	http.HandleFunc("/ws", server.HandleConnections)
-	log.Println("SERVER: WebSocket server starting on :8080")
+	log.Println("[SERVER]: WebSocket server starting on :8080")
 	if err := http.ListenAndServe(addr, nil); err != nil {
-		log.Fatalf("SERVER: Server failed: %v", err)
+		log.Fatalf("[SERVER]: Server failed: %v", err)
 	}
 }
