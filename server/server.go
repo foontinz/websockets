@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -16,21 +17,19 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type InConnection struct {
-	conn *websocket.Conn
-}
+type Clients map[uuid.UUID]*websocket.Conn
 
 type ProxyServer struct {
 	mu       sync.RWMutex
 	upgrader websocket.Upgrader
 	sink     sink.Sink
-	clients  map[uuid.UUID]InConnection
+	clients  Clients
 }
 
 func NewProxyServer(sink sink.Sink) *ProxyServer {
 	s := &ProxyServer{
 		sink:    sink,
-		clients: make(map[uuid.UUID]InConnection),
+		clients: make(Clients),
 	}
 
 	s.upgrader = websocket.Upgrader{
@@ -58,7 +57,13 @@ func (ps *ProxyServer) tryUpgradeConn(w http.ResponseWriter, r *http.Request) (*
 	return conn, nil
 }
 
-func (ps *ProxyServer) addClient(connection InConnection) uuid.UUID {
+func (ps *ProxyServer) getClient(uuid uuid.UUID) *websocket.Conn {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	return ps.clients[uuid]
+}
+
+func (ps *ProxyServer) addClient(connection *websocket.Conn) uuid.UUID {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	userUUID := uuid.New()
@@ -72,32 +77,43 @@ func (ps *ProxyServer) removeClient(uuid uuid.UUID) {
 	delete(ps.clients, uuid)
 }
 
-func (ps *ProxyServer) HandleWebsocketMessage(conn *websocket.Conn, message events.MessageEvent) error {
-
-	if err := conn.WriteMessage(websocket.TextMessage, message.Content); err != nil {
-		log.Println("SERVER: Error during writing to client message:", err)
-		return err
-	}
-
-	log.Printf("SERVER: Sent to client: %s\n", message.Content)
+func (ps *ProxyServer) RedirectWebsocketMessage(message events.MessageEvent) error {
+	log.Printf("Redirected to dest message: %s\n", message)
 	return nil
 }
 
-func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
-	defer conn.Close()
-	conn = connection.ConfigureConnection(conn)
-	connId := ps.addClient(InConnection{conn: conn})
-	defer func() {
-		log.Printf("Connection is closing %s, removing client from the server", connId)
-		ps.removeClient(connId)
-	}()
+func (ps *ProxyServer) AcknowledgeClient(ctx context.Context, clientUUID uuid.UUID, message events.MessageEvent) error {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+		conn := ps.getClient(clientUUID)
+		if err := conn.WriteMessage(websocket.TextMessage, message.Content); err != nil {
+			log.Println("SERVER: Error acknowledging client. Lost message:", err)
+			return err
+		}
 
+		log.Printf("SERVER: Acknowledged client: %s\n", message.Content)
+		return nil
+	}
+}
+
+func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
+	conn = connection.ConfigureConnection(conn)
+	clientUUID := ps.addClient(conn)
+	defer func() {
+		log.Printf("Connection is closing %s, removing client from the server", clientUUID)
+		ps.removeClient(clientUUID)
+		conn.Close()
+	}()
 	for {
+		ctx, ctxCancel := context.WithCancel(context.Background())
 		messageType, message, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Println("SERVER: Unexpected error:", err)
 			}
+			ctxCancel()
 			break
 		}
 		if messageType == websocket.BinaryMessage {
@@ -110,7 +126,8 @@ func (ps *ProxyServer) HandleWebsocketConnection(conn *websocket.Conn) {
 			log.Println("SERVER: Cannot process message, not deserializable, msg: ", message)
 			continue
 		}
-		ps.HandleWebsocketMessage(conn, msgEvent)
+		ps.RedirectWebsocketMessage(msgEvent)
+		ps.AcknowledgeClient(ctx, clientUUID, msgEvent)
 	}
 }
 
