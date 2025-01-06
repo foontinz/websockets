@@ -78,7 +78,7 @@ func (ps *ProxyServer) removeClient(uuid uuid.UUID) {
 }
 
 func (ps *ProxyServer) RedirectWebsocketMessage(clientUUID uuid.UUID, message events.MessageEvent) error {
-	if err := ps.sink.Write(context.TODO(), clientUUID.String(), message.Content); err != nil {
+	if err := ps.sink.Write(context.TODO(), string(message.Channel), message.Content); err != nil {
 		return err
 	}
 	log.Printf("[SERVER]: Redirected to dest message: %s\n", message)

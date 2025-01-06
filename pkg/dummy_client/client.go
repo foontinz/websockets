@@ -1,4 +1,4 @@
-package client
+package dummy_client
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sync"
 	"websocketReverseProxy/pkg/events"
+	"websocketReverseProxy/pkg/sink"
 
 	"github.com/gorilla/websocket"
 )
@@ -57,7 +58,7 @@ func (c *Client) close() {
 	c.conn.Close()
 }
 
-func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- bool) {
+func RunClient(wg *sync.WaitGroup, messagesToSend map[sink.Channel][]string, result chan<- bool) {
 	// Goroutine to run client
 	defer wg.Done()
 
@@ -68,11 +69,12 @@ func RunClient(wg *sync.WaitGroup, clientNum int, msgNum int, result chan<- bool
 	}
 	defer client.close()
 
-	for i := 0; i < msgNum; i++ {
-		msgEvent := events.MessageEvent{Channel: fmt.Sprintf("client=%d", clientNum), Content: []byte(fmt.Sprintf("I am message=%d", i))}
-		client.sendMessage(msgEvent)
-		client.receiveMessage()
-
+	for channel, messages := range messagesToSend {
+		for _, msg := range messages {
+			msgEvent := events.MessageEvent{Channel: channel, Content: []byte(msg)}
+			client.sendMessage(msgEvent)
+			client.receiveMessage()
+		}
 	}
 	result <- reflect.DeepEqual(client.receivedMessages, client.sentMessages)
 }
