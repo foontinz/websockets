@@ -1,6 +1,8 @@
 package events
 
+import "websocketReverseProxy/pkg/sink"
+
 type MessageEvent struct {
-	Channel string `json:"channel"`
-	Content []byte `json:"content"`
+	Channel sink.Channel `json:"channel"`
+	Content []byte       `json:"content"`
 }
