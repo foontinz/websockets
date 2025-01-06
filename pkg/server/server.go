@@ -156,6 +156,7 @@ func (ps *ProxyServer) HandleConnections(w http.ResponseWriter, r *http.Request)
 	go ps.HandleWebsocketConnection(conn)
 }
 
+// TODO: move to cmd, test it in cmd
 func StartServer(addr string, sink sink.Sink) {
 	server := NewProxyServer(sink)
 	http.HandleFunc("/ws", server.HandleConnections)
