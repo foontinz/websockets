@@ -14,7 +14,7 @@ const testChannel = "test"
 const msgNumber = 10
 const redisTestTimeout = time.Second * 5
 
-func TestRedisClient(t *testing.T) {
+func TestRedisSink(t *testing.T) {
 	var (
 		ctx, ctxCancel = context.WithTimeout(context.Background(), redisTestTimeout)
 		receivedMsgs   = make(chan string, msgNumber)
@@ -27,7 +27,7 @@ func TestRedisClient(t *testing.T) {
 
 	}()
 
-	c := NewRedisClient(redis.NewClient(&redis.Options{
+	c := NewRedisSink(redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	}))
 	defer c.Close(ctx)

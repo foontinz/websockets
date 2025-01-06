@@ -6,23 +6,23 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisClient struct {
+type RedisSink struct {
 	client *redis.Client
 }
 
-func NewRedisClient(client *redis.Client) *RedisClient {
-	rc := &RedisClient{
+func NewRedisSink(client *redis.Client) *RedisSink {
+	rc := &RedisSink{
 		client: client,
 	}
 
 	return rc
 }
 
-func (rc *RedisClient) Write(ctx context.Context, channel string, data interface{}) error {
+func (rc *RedisSink) Write(ctx context.Context, channel string, data interface{}) error {
 	return rc.client.Publish(ctx, channel, data).Err()
 }
 
-func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) (<-chan string, <-chan struct{}) {
+func (rc *RedisSink) Subscribe(ctx context.Context, channels ...string) (<-chan string, <-chan struct{}) {
 	ch := make(chan string)
 	ready := make(chan struct{})
 
@@ -43,6 +43,6 @@ func (rc *RedisClient) Subscribe(ctx context.Context, channels ...string) (<-cha
 	return ch, ready
 }
 
-func (rc *RedisClient) Close(ctx context.Context) error {
+func (rc *RedisSink) Close(ctx context.Context) error {
 	return rc.client.Close()
 }

@@ -13,6 +13,6 @@ var redisAddr = flag.String("redisAddr", "localhost:6379", "redis service addres
 
 func main() {
 	flag.Parse()
-	redis := sink.NewRedisClient(redis.NewClient(&redis.Options{Addr: *redisAddr}))
+	redis := sink.NewRedisSink(redis.NewClient(&redis.Options{Addr: *redisAddr}))
 	server.StartServer(*appAddr, redis)
 }
