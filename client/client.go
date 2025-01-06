@@ -22,7 +22,7 @@ func newClient(serverURL string) (*Client, error) {
 	// Establish WebSocket connection
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL, http.Header{})
 	if err != nil {
-		return nil, fmt.Errorf("CLIENT: failed to connect: %v", err)
+		return nil, fmt.Errorf("[CLIENT]: failed to connect: %v", err)
 	}
 
 	return &Client{
@@ -36,20 +36,20 @@ func (c *Client) sendMessage(msgEvent events.MessageEvent) {
 	message, _ := json.Marshal(msgEvent)
 	err := c.conn.WriteMessage(websocket.TextMessage, message)
 	if err != nil {
-		log.Println("CLIENT: Send error:", err)
+		log.Println("[CLIENT]: Send error:", err)
 		return
 	}
-	log.Println("CLIENT: sent msg:", string(message))
+	log.Println("[CLIENT]: sent msg:", string(message))
 	c.sentMessages = append(c.sentMessages, string(msgEvent.Content))
 }
 
 func (c *Client) receiveMessage() {
 	_, actMessage, err := c.conn.ReadMessage()
 	if err != nil {
-		log.Println("CLIENT: Read error:", err)
+		log.Println("[CLIENT]: Read error:", err)
 		return
 	}
-	log.Println("CLIENT: received msg:", string(actMessage))
+	log.Println("[CLIENT]: received msg:", string(actMessage))
 	c.receivedMessages = append(c.receivedMessages, string(actMessage))
 }
 
